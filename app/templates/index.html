@@ -1,1 +1,524 @@
-#text file
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF Processing — Bank Statements</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=3.0">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Bootstrap only for Toast component -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="nav-brand">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                    <polyline points="14 2 14 8 20 8"></polyline>
+                    <line x1="16" y1="13" x2="8" y2="13"></line>
+                    <line x1="16" y1="17" x2="8" y2="17"></line>
+                    <polyline points="10 9 9 9 8 9"></polyline>
+                </svg>
+                <span class="brand-text">PDF Processor</span>
+            </div>
+            <div class="nav-links">
+                <a href="#" class="nav-link active">Upload</a>
+                <a href="#" class="nav-link">History</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="main-wrapper">
+        <div class="container">
+            <!-- Header Section -->
+            <div class="page-header">
+                <h1 class="page-title">Process Bank Statements</h1>
+                <p class="page-description">Upload PDF files to extract text and data from your bank statements</p>
+            </div>
+
+            <!-- Upload Card -->
+            <div class="card upload-card">
+                <form id="uploadForm" enctype="multipart/form-data">
+                    <div class="upload-area" id="uploadArea" style="cursor: pointer;">
+                        <div class="upload-icon">
+                            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                <polyline points="17 8 12 3 7 8"></polyline>
+                                <line x1="12" y1="3" x2="12" y2="15"></line>
+                            </svg>
+                        </div>
+                        <div class="upload-text">
+                            <p class="upload-main">Drop your PDF files here, or <span class="upload-browse">click to browse</span></p>
+                            <p class="upload-hint">Supports multiple files • PDF only • Max 16MB per file</p>
+                        </div>
+                        <input type="file" id="fileInput" name="files[]" accept=".pdf" multiple required>
+                    </div>
+                    
+                    <div id="fileList" class="file-list"></div>
+                    
+                    <div class="form-actions">
+                        <button type="button" id="clearBtn" class="btn btn-secondary" style="display: none;">Clear All</button>
+                        <button type="submit" id="uploadBtn" class="btn btn-primary" disabled>
+                            <span>Process Files</span>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="9 18 15 12 9 6"></polyline>
+                            </svg>
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Loading State -->
+            <div id="loadingSection" class="loading-section" style="display: none;">
+                <div class="card loading-card">
+                    <div class="loading-content">
+                        <div class="loader"></div>
+                        <h3 class="loading-title">Processing your files</h3>
+                        <p class="loading-text">Extracting text from PDF documents...</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Results Section -->
+            <div id="resultsSection" class="results-section" style="display: none;">
+                <div class="section-header">
+                    <h2 class="section-title">Results</h2>
+                    <button id="newUploadBtn" class="btn btn-outline">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="12" y1="5" x2="12" y2="19"></line>
+                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                        </svg>
+                        New Upload
+                    </button>
+                </div>
+                
+                <div id="summary" class="summary-grid"></div>
+                
+                <div id="resultsContainer" class="results-grid"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 9999;">
+        <div id="liveToast" class="toast align-items-center border-0" role="alert" aria-live="assertive" aria-atomic="true">
+            <div class="d-flex">
+                <div class="toast-body" id="toastMessage"></div>
+                <button type="button" class="btn-close me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Toast notification function - defined first
+        function showToast(message, type = 'info') {
+            console.log('showToast called:', message, type);
+            const toastEl = document.getElementById('liveToast');
+            const toastBody = document.getElementById('toastMessage');
+            
+            if (!toastEl || !toastBody) {
+                console.error('Toast elements not found');
+                return;
+            }
+            
+            // Set message
+            toastBody.textContent = message;
+            
+            // Remove all existing background classes
+            toastEl.classList.remove('text-bg-success', 'text-bg-danger', 'text-bg-primary', 'text-bg-warning');
+            
+            // Add appropriate Bootstrap class based on type
+            if (type === 'success') {
+                toastEl.classList.add('text-bg-success');
+            } else if (type === 'error') {
+                toastEl.classList.add('text-bg-danger');
+            } else if (type === 'warning') {
+                toastEl.classList.add('text-bg-warning');
+            } else {
+                toastEl.classList.add('text-bg-primary');
+            }
+            
+            // Show the toast using Bootstrap's Toast API
+            const bsToast = new bootstrap.Toast(toastEl, {
+                autohide: true,
+                delay: 3000
+            });
+            bsToast.show();
+        }
+    
+        const fileInput = document.getElementById('fileInput');
+        const fileList = document.getElementById('fileList');
+        const uploadForm = document.getElementById('uploadForm');
+        const uploadBtn = document.getElementById('uploadBtn');
+        const clearBtn = document.getElementById('clearBtn');
+        const uploadArea = document.getElementById('uploadArea');
+        const loadingSection = document.getElementById('loadingSection');
+        const resultsSection = document.getElementById('resultsSection');
+        const resultsContainer = document.getElementById('resultsContainer');
+        const summary = document.getElementById('summary');
+
+        // Array to store accumulated files
+        let accumulatedFiles = [];
+
+        // Make upload area clickable
+        uploadArea.addEventListener('click', function(e) {
+            // Prevent triggering when clicking the input itself or remove buttons
+            if (e.target === fileInput || e.target.closest('.file-remove')) {
+                return;
+            }
+            fileInput.click();
+        });
+
+        // File selection handler - accumulate files instead of replacing
+        fileInput.addEventListener('change', function(e) {
+            if (e.target.files.length === 0) return;
+            
+            const newFiles = Array.from(e.target.files);
+            
+            // Add new files to accumulated list (avoid duplicates by name)
+            newFiles.forEach(newFile => {
+                const isDuplicate = accumulatedFiles.some(f => f.name === newFile.name && f.size === newFile.size);
+                if (!isDuplicate) {
+                    accumulatedFiles.push(newFile);
+                }
+            });
+            
+            // Update the file input with all accumulated files
+            updateFileInput();
+            displaySelectedFiles(accumulatedFiles);
+        });
+
+        // Drag and drop functionality
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            uploadArea.addEventListener(eventName, preventDefaults, false);
+        });
+
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            uploadArea.addEventListener(eventName, () => {
+                uploadArea.classList.add('drag-active');
+            });
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            uploadArea.addEventListener(eventName, () => {
+                uploadArea.classList.remove('drag-active');
+            });
+        });
+
+        uploadArea.addEventListener('drop', function(e) {
+            const dt = e.dataTransfer;
+            const newFiles = Array.from(dt.files);
+            
+            // Add new files to accumulated list (avoid duplicates)
+            newFiles.forEach(newFile => {
+                const isDuplicate = accumulatedFiles.some(f => f.name === newFile.name && f.size === newFile.size);
+                if (!isDuplicate) {
+                    accumulatedFiles.push(newFile);
+                }
+            });
+            
+            updateFileInput();
+            displaySelectedFiles(accumulatedFiles);
+        });
+
+        // Helper function to update the file input with accumulated files
+        function updateFileInput() {
+            const dt = new DataTransfer();
+            accumulatedFiles.forEach(file => dt.items.add(file));
+            fileInput.files = dt.files;
+        }
+
+        // Display selected files
+        function displaySelectedFiles(files) {
+            fileList.innerHTML = '';
+            
+            if (files.length > 0) {
+                Array.from(files).forEach((file, index) => {
+                    const fileItem = document.createElement('div');
+                    fileItem.className = 'file-item';
+                    fileItem.innerHTML = `
+                        <div class="file-icon">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                <polyline points="14 2 14 8 20 8"></polyline>
+                            </svg>
+                        </div>
+                        <div class="file-info">
+                            <div class="file-name">${file.name}</div>
+                            <div class="file-size">${formatFileSize(file.size)}</div>
+                        </div>
+                        <button type="button" class="file-remove" data-index="${index}">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <line x1="18" y1="6" x2="6" y2="18"></line>
+                                <line x1="6" y1="6" x2="18" y2="18"></line>
+                            </svg>
+                        </button>
+                    `;
+                    fileList.appendChild(fileItem);
+                });
+
+                uploadBtn.disabled = false;
+                clearBtn.style.display = 'block';
+
+                // Add remove file handlers
+                document.querySelectorAll('.file-remove').forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        removeFile(parseInt(this.dataset.index));
+                    });
+                });
+            } else {
+                uploadBtn.disabled = true;
+                clearBtn.style.display = 'none';
+            }
+        }
+
+        function removeFile(index) {
+            accumulatedFiles.splice(index, 1);
+            updateFileInput();
+            displaySelectedFiles(accumulatedFiles);
+            
+            if (fileInput.files.length === 0) {
+                showToast('All files removed', 'info');
+            }
+        }
+
+        clearBtn.addEventListener('click', function() {
+            accumulatedFiles = [];
+            fileInput.value = '';
+            displaySelectedFiles([]);
+            showToast('Files cleared', 'info');
+        });
+
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+        }
+
+        // Form submission
+        uploadForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const files = fileInput.files;
+            if (files.length === 0) {
+                showToast('Please select at least one PDF file', 'error');
+                return;
+            }
+
+            const formData = new FormData();
+            for (let file of files) {
+                formData.append('files[]', file);
+            }
+
+            // Show loading state
+            document.querySelector('.upload-card').style.display = 'none';
+            loadingSection.style.display = 'block';
+            resultsSection.style.display = 'none';
+
+            try {
+                const response = await fetch('/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.success) {
+                    displayResults(data);
+                } else {
+                    showToast('Error: ' + (data.error || 'Unknown error occurred'), 'error');
+                    document.querySelector('.upload-card').style.display = 'block';
+                }
+            } catch (error) {
+                showToast('Error uploading files: ' + error.message, 'error');
+                document.querySelector('.upload-card').style.display = 'block';
+            } finally {
+                loadingSection.style.display = 'none';
+            }
+        });
+
+        // Display results
+        function displayResults(data) {
+            summary.innerHTML = '';
+            
+            const stats = [
+                { label: 'Total Files', value: data.summary.total_files, icon: 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z' },
+                { label: 'Successful', value: data.summary.successful, icon: 'M22 11.08V12a10 10 0 1 1-5.93-9.14' },
+                { label: 'Failed', value: data.summary.failed, icon: 'M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z' },
+                { label: 'Total Pages', value: data.summary.total_pages, icon: 'M4 7V4a2 2 0 0 1 2-2h8.5L20 7.5V20a2 2 0 0 1-2 2h-6' }
+            ];
+
+            stats.forEach(stat => {
+                const statCard = document.createElement('div');
+                statCard.className = 'stat-card';
+                statCard.innerHTML = `
+                    <div class="stat-icon">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="${stat.icon}"></path>
+                        </svg>
+                    </div>
+                    <div class="stat-content">
+                        <div class="stat-value">${stat.value}</div>
+                        <div class="stat-label">${stat.label}</div>
+                    </div>
+                `;
+                summary.appendChild(statCard);
+            });
+
+            resultsContainer.innerHTML = '';
+            data.results.forEach((result, index) => {
+                const resultCard = document.createElement('div');
+                resultCard.className = 'card result-card';
+                
+                if (result.status === 'success') {
+                    resultCard.innerHTML = `
+                        <div class="result-header">
+                            <div class="result-title">
+                                <div class="status-badge success">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                                        <polyline points="20 6 9 17 4 12"></polyline>
+                                    </svg>
+                                </div>
+                                <h3>${result.filename}</h3>
+                            </div>
+                            <span class="page-count">${result.pages} page${result.pages !== 1 ? 's' : ''}</span>
+                        </div>
+                        <div class="result-content">
+                            <div class="content-label">Extracted Text</div>
+                            <div class="text-preview">
+                                <pre>${escapeHtml(result.text)}</pre>
+                            </div>
+                        </div>
+                        <div class="result-actions">
+                            <button onclick="copyToClipboard(${index})" class="btn btn-outline btn-sm">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                                </svg>
+                                Copy Text
+                            </button>
+                            <button onclick="downloadText(${index})" class="btn btn-outline btn-sm">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                    <polyline points="7 10 12 15 17 10"></polyline>
+                                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                                </svg>
+                                Download TXT
+                            </button>
+                        </div>
+                    `;
+                } else {
+                    resultCard.innerHTML = `
+                        <div class="result-header">
+                            <div class="result-title">
+                                <div class="status-badge error">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                                    </svg>
+                                </div>
+                                <h3>${result.filename}</h3>
+                            </div>
+                        </div>
+                        <div class="result-content">
+                            <div class="error-alert">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <circle cx="12" cy="12" r="10"></circle>
+                                    <line x1="12" y1="8" x2="12" y2="12"></line>
+                                    <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                                </svg>
+                                <span>${result.error}</span>
+                            </div>
+                        </div>
+                    `;
+                }
+                
+                resultsContainer.appendChild(resultCard);
+            });
+
+            window.extractedResults = data.results;
+
+            resultsSection.style.display = 'block';
+            setTimeout(() => {
+                resultsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }, 100);
+        }
+
+        newUploadBtn.addEventListener('click', function() {
+            document.querySelector('.upload-card').style.display = 'block';
+            resultsSection.style.display = 'none';
+            fileInput.value = '';
+            displaySelectedFiles([]);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        });
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function copyToClipboard(index) {
+            const text = window.extractedResults[index].text;
+            navigator.clipboard.writeText(text).then(() => {
+                showToast('Text copied to clipboard!', 'success');
+            }).catch(err => {
+                showToast('Failed to copy text', 'error');
+            });
+        }
+
+        async function downloadText(index) {
+            const result = window.extractedResults[index];
+            const text = result.text;
+            const filename = result.filename;
+            
+            try {
+                const response = await fetch('/download-text', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        text: text,
+                        filename: filename
+                    })
+                });
+                
+                if (response.ok) {
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = filename.replace('.pdf', '.txt');
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+                } else {
+                    showToast('Failed to download file', 'error');
+                }
+            } catch (error) {
+                showToast('Error downloading file: ' + error.message, 'error');
+            }
+        }
+        
+        // Test toast on page load
+        setTimeout(() => {
+            showToast('Toast notifications are working!', 'success');
+        }, 500);
+    </script>
+</body>
+</html>
